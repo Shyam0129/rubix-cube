@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Interactive Rubik's Cube Solver</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            color: white;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0,0,0,0.7);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        button {
+            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+        
+        .move-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            min-width: 50px;
+        }
+        
+        #instructions {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            max-width: 250px;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 15px;
+            margin: 10px 0;
+        }
+        
+        .stat {
+            background: rgba(255,255,255,0.1);
+            padding: 8px 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 200;
+            background: rgba(0,0,0,0.8);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        #formulaModal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            z-index: 300;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            border-radius: 20px;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            position: relative;
+        }
+        
+        .formula-step {
+            background: rgba(255,255,255,0.1);
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #4ECDC4;
+        }
+        
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="loading">
+            <div class="spinner"></div>
+            <p>Loading 3D Rubik's Cube...</p>
+        </div>
+        
+        <div id="ui">
+            <h2>🎲 3D Rubik's Cube</h2>
+            <div class="stats">
+                <div class="stat">
+                    <div>Moves</div>
+                    <div id="moveCount">0</div>
+                </div>
+                <div class="stat">
+                    <div>Time</div>
+                    <div id="timer">00:00</div>
+                </div>
+            </div>
+            <div id="currentMove">Ready to play!</div>
+        </div>
+        
+        <div id="instructions">
+            <h3>🎮 Controls</h3>
+            <p><strong>Mouse:</strong> Drag to rotate view</p>
+            <p><strong>Click:</strong> Select cube face to rotate</p>
+            <p><strong>Scroll:</strong> Zoom in/out</p>
+            <p><strong>Buttons:</strong> Manual rotations</p>
+        </div>
+        
+        <div id="controls">
+            <button onclick="scrambleCube()">🔀 Scramble</button>
+            <button onclick="solveCube()">✨ Auto Solve</button>
+            <button onclick="showFormula()">📋 Formula</button>
+            <button onclick="resetCube()">🔄 Reset</button>
+            
+            <div style="border-left: 2px solid rgba(255,255,255,0.3); height: 40px; margin: 0 10px;"></div>
+            
+            <button class="move-btn" onclick="rotateFace('F')">F</button>
+            <button class="move-btn" onclick="rotateFace('R')">R</button>
+            <button class="move-btn" onclick="rotateFace('U')">U</button>
+            <button class="move-btn" onclick="rotateFace('L')">L</button>
+            <button class="move-btn" onclick="rotateFace('B')">B</button>
+            <button class="move-btn" onclick="rotateFace('D')">D</button>
+            
+            <div style="border-left: 2px solid rgba(255,255,255,0.3); height: 40px; margin: 0 10px;"></div>
+            
+            <button class="move-btn" onclick="rotateFace('F\'')">F'</button>
+            <button class="move-btn" onclick="rotateFace('R\'')">R'</button>
+            <button class="move-btn" onclick="rotateFace('U\'')">U'</button>
+            <button class="move-btn" onclick="rotateFace('L\'')">L'</button>
+            <button class="move-btn" onclick="rotateFace('B\'')">B'</button>
+            <button class="move-btn" onclick="rotateFace('D\'')">D'</button>
+        </div>
+        
+        <div id="formulaModal">
+            <div class="modal-content">
+                <button class="close-btn" onclick="closeFormula()">&times;</button>
+                <h2>🧩 Solving Formula</h2>
+                <div id="formulaContent">
+                    <p>Scramble the cube first to generate a solving formula!</p>
+                </div>
+                <button onclick="executeFormula()" style="margin-top: 20px;">▶️ Execute Formula</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Global variables
+        let scene, camera, renderer;
+        let cubeGroup, cubes = [];
+        let isAnimating = false;
+        let moveCount = 0;
+        let startTime = Date.now();
+        let timerInterval;
+        let scrambleSequence = [];
+        let solveSequence = [];
+        
+        // CFOP solver states and algorithms
+        const CFOP = {
+            // Cross algorithms
+            CROSS_ALGORITHMS: {
+                'D': ["D"],
+                'U': ["F", "F"],
+                'F': ["F"],
+                'B': ["B"],
+                'L': ["L"],
+                'R': ["R"]
+            },
+            // F2L algorithms (First 2 Layers)
+            F2L_ALGORITHMS: {
+                'basic': ["R", "U", "R'"],
+                'reverse': ["R'", "U'", "R"],
+                'insert': ["U", "R", "U'", "R'"]
+            },
+            // OLL algorithms (Orient Last Layer)
+            OLL_ALGORITHMS: {
+                'cross': ["F", "R", "U", "R'", "U'", "F'"],
+                'corners': ["R", "U", "R'", "U", "R", "U2", "R'"]
+            },
+            // PLL algorithms (Permute Last Layer)
+            PLL_ALGORITHMS: {
+                'corners': ["R", "U'", "R", "U", "R", "U", "R", "U'", "R'", "U'", "R2"],
+                'edges': ["R", "U", "R'", "U'", "R'", "F", "R2", "U'", "R'", "U'", "R", "U", "R'", "F'"]
+            }
+        };
+        
+        // Cube colors - standard Rubik's cube color scheme
+        const colors = {
+            white: 0xffffff,   // Up
+            yellow: 0xffff00,  // Down  
+            red: 0xff0000,     // Front
+            orange: 0xff8c00,  // Back
+            blue: 0x0000ff,    // Right
+            green: 0x00ff00    // Left
+        };
+        
+        // Initialize the 3D scene
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a1a);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(5, 5, 5);
+            camera.lookAt(0, 0, 0);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('container').appendChild(renderer.domElement);
+            
+            // Add lighting
+            addLighting();
+            
+            // Create the Rubik's cube
+            createRubiksCube();
+            
+            // Add mouse controls
+            addMouseControls();
+            
+            // Add click detection
+            addClickDetection();
+            
+            // Start animation loop
+            animate();
+            
+            // Start timer
+            startTimer();
+            
+            // Hide loading screen
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        function addLighting() {
+            // Ambient light
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+            
+            // Directional light
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 10, 10);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.camera.near = 0.1;
+            directionalLight.shadow.camera.far = 50;
+            directionalLight.shadow.camera.left = -10;
+            directionalLight.shadow.camera.right = 10;
+            directionalLight.shadow.camera.top = 10;
+            directionalLight.shadow.camera.bottom = -10;
+            scene.add(directionalLight);
+            
+            // Point light for better illumination
+            const pointLight = new THREE.PointLight(0xffffff, 0.5);
+            pointLight.position.set(-10, -10, -10);
+            scene.add(pointLight);
+        }
+        
+        function createRubiksCube() {
+            cubeGroup = new THREE.Group();
+            scene.add(cubeGroup);
+            
+            // Create 27 small cubes (3x3x3)
+            for (let x = -1; x <= 1; x++) {
+                for (let y = -1; y <= 1; y++) {
+                    for (let z = -1; z <= 1; z++) {
+                        createSmallCube(x, y, z);
+                    }
+                }
+            }
+        }
+        
+        function createSmallCube(x, y, z) {
+            const geometry = new THREE.BoxGeometry(0.95, 0.95, 0.95);
+            
+            // Create materials for each face with proper colors
+            const materials = [];
+            
+            // Right face (x = 1) - Blue
+            materials.push(new THREE.MeshLambertMaterial({ 
+                color: x === 1 ? colors.blue : 0x333333 
+            }));
+            
+            // Left face (x = -1) - Green  
+            materials.push(new THREE.MeshLambertMaterial({ 
+                color: x === -1 ? colors.green : 0x333333 
+            }));
+            
+            // Top face (y = 1) - White
+            materials.push(new THREE.MeshLambertMaterial({ 
+                color: y === 1 ? colors.white : 0x333333 
+            }));
+            
+            // Bottom face (y = -1) - Yellow
+            materials.push(new THREE.MeshLambertMaterial({ 
+                color: y === -1 ? colors.yellow : 0x333333 
+            }));
+            
+            // Front face (z = 1) - Red
+            materials.push(new THREE.MeshLambertMaterial({ 
+                color: z === 1 ? colors.red : 0x333333 
+            }));
+            
+            // Back face (z = -1) - Orange
+            materials.push(new THREE.MeshLambertMaterial({ 
+                color: z === -1 ? colors.orange : 0x333333 
+            }));
+            
+            const cube = new THREE.Mesh(geometry, materials);
+            cube.position.set(x, y, z);
+            cube.castShadow = true;
+            cube.receiveShadow = true;
+            
+            // Store original position and current face colors
+            cube.userData = { 
+                originalPosition: { x, y, z },
+                faceColors: {
+                    right: x === 1 ? 'blue' : null,
+                    left: x === -1 ? 'green' : null,
+                    top: y === 1 ? 'white' : null,
+                    bottom: y === -1 ? 'yellow' : null,
+                    front: z === 1 ? 'red' : null,
+                    back: z === -1 ? 'orange' : null
+                }
+            };
+            
+            cubeGroup.add(cube);
+            cubes.push(cube);
+        }
+        
+        function addMouseControls() {
+            let isMouseDown = false;
+            let mouseX = 0, mouseY = 0;
+            let rotationX = 0, rotationY = 0;
+            
+            renderer.domElement.addEventListener('mousedown', (event) => {
+                isMouseDown = true;
+                mouseX = event.clientX;
+                mouseY = event.clientY;
+            });
+            
+            renderer.domElement.addEventListener('mousemove', (event) => {
+                if (!isMouseDown) return;
+                
+                const deltaX = event.clientX - mouseX;
+                const deltaY = event.clientY - mouseY;
+                
+                rotationY += deltaX * 0.01;
+                rotationX += deltaY * 0.01;
+                
+                // Limit vertical rotation
+                rotationX = Math.max(-Math.PI/2, Math.min(Math.PI/2, rotationX));
+                
+                // Apply rotation to camera around the cube
+                const radius = 8;
+                camera.position.x = radius * Math.cos(rotationY) * Math.cos(rotationX);
+                camera.position.y = radius * Math.sin(rotationX);
+                camera.position.z = radius * Math.sin(rotationY) * Math.cos(rotationX);
+                camera.lookAt(0, 0, 0);
+                
+                mouseX = event.clientX;
+                mouseY = event.clientY;
+            });
+            
+            renderer.domElement.addEventListener('mouseup', () => {
+                isMouseDown = false;
+            });
+            
+            // Zoom with mouse wheel
+            renderer.domElement.addEventListener('wheel', (event) => {
+                const zoom = event.deltaY * 0.001;
+                camera.position.multiplyScalar(1 + zoom);
+                
+                // Limit zoom
+                const distance = camera.position.length();
+                if (distance < 3) camera.position.multiplyScalar(3 / distance);
+                if (distance > 15) camera.position.multiplyScalar(15 / distance);
+            });
+        }
+        
+        function addClickDetection() {
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+            
+            renderer.domElement.addEventListener('click', (event) => {
+                if (isAnimating) return;
+                
+                // Calculate mouse position in normalized device coordinates
+                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+                
+                // Cast ray from camera through mouse position
+                raycaster.setFromCamera(mouse, camera);
+                
+                // Check for intersections with cubes
+                const intersects = raycaster.intersectObjects(cubes);
+                
+                if (intersects.length > 0) {
+                    const clickedCube = intersects[0].object;
+                    const face = intersects[0].face;
+                    
+                    // Determine which face was clicked and rotate accordingly
+                    const faceRotation = determineFaceRotation(clickedCube, face);
+                    if (faceRotation) {
+                        rotateFace(faceRotation);
+                    }
+                }
+            });
+        }
+        
+        function determineFaceRotation(cube, face) {
+            const normal = face.normal;
+            
+            // Determine which face of the cube was clicked based on normal
+            if (Math.abs(normal.x) > 0.5) {
+                return normal.x > 0 ? 'R' : 'L';
+            } else if (Math.abs(normal.y) > 0.5) {
+                return normal.y > 0 ? 'U' : 'D';
+            } else if (Math.abs(normal.z) > 0.5) {
+                return normal.z > 0 ? 'F' : 'B';
+            }
+            return null;
+        }
+        
+        function rotateFace(face) {
+            if (isAnimating) return;
+            
+            isAnimating = true;
+            moveCount++;
+            updateUI();
+            
+            document.getElementById('currentMove').textContent = `Rotating ${face}...`;
+            
+            // Get cubes that belong to this face
+            const faceCubes = getFaceCubes(face);
+            
+            // Create rotation group
+            const rotationGroup = new THREE.Group();
+            scene.add(rotationGroup);
+            
+            // Move face cubes to rotation group
+            faceCubes.forEach(cube => {
+                cubeGroup.remove(cube);
+                rotationGroup.add(cube);
+            });
+            
+            // Determine rotation axis and angle
+            const { axis, angle } = getRotationParams(face);
+            
+            // Animate rotation
+            animateRotation(rotationGroup, axis, angle, () => {
+                // Move cubes back to main group and update their colors
+                faceCubes.forEach(cube => {
+                    // Update position based on rotation
+                    updateCubePosition(cube, face);
+                    // Update face colors after rotation
+                    updateCubeColors(cube, face);
+                    rotationGroup.remove(cube);
+                    cubeGroup.add(cube);
+                });
+                
+                scene.remove(rotationGroup);
+                isAnimating = false;
+                
+                document.getElementById('currentMove').textContent = `Move completed: ${face}`;
+                
+                // Check if solved
+                if (isSolved()) {
+                    document.getElementById('currentMove').textContent = '🎉 Cube Solved! 🎉';
+                }
+            });
+        }
+        
+        function getFaceCubes(face) {
+            return cubes.filter(cube => {
+                const pos = cube.position;
+                switch(face.charAt(0)) {
+                    case 'F': return Math.abs(pos.z - 1) < 0.1;
+                    case 'B': return Math.abs(pos.z + 1) < 0.1;
+                    case 'R': return Math.abs(pos.x - 1) < 0.1;
+                    case 'L': return Math.abs(pos.x + 1) < 0.1;
+                    case 'U': return Math.abs(pos.y - 1) < 0.1;
+                    case 'D': return Math.abs(pos.y + 1) < 0.1;
+                    default: return false;
+                }
+            });
+        }
+        
+        function getRotationParams(face) {
+            const isClockwise = face.length === 1;
+            const angle = isClockwise ? -Math.PI/2 : Math.PI/2;
+            
+            switch(face.charAt(0)) {
+                case 'F': return { axis: new THREE.Vector3(0, 0, 1), angle };
+                case 'B': return { axis: new THREE.Vector3(0, 0, -1), angle: -angle };
+                case 'R': return { axis: new THREE.Vector3(1, 0, 0), angle };
+                case 'L': return { axis: new THREE.Vector3(-1, 0, 0), angle: -angle };
+                case 'U': return { axis: new THREE.Vector3(0, 1, 0), angle };
+                case 'D': return { axis: new THREE.Vector3(0, -1, 0), angle: -angle };
+                default: return { axis: new THREE.Vector3(0, 1, 0), angle: 0 };
+            }
+        }
+        
+        function animateRotation(group, axis, angle, callback) {
+            const duration = 500; // milliseconds
+            const startTime = Date.now();
+            const quaternion = new THREE.Quaternion();
+            
+            function animate() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Smooth easing function
+                const easeProgress = 1 - Math.pow(1 - progress, 3);
+                
+                // Create quaternion from axis and angle
+                quaternion.setFromAxisAngle(axis, angle * easeProgress);
+                group.setRotationFromQuaternion(quaternion);
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    // Apply final rotation to individual cubes
+                    group.children.forEach(cube => {
+                        cube.position.applyAxisAngle(axis, angle);
+                        cube.position.round();
+                    });
+                    
+                    callback();
+                }
+            }
+            
+            animate();
+        }
+        
+        function updateCubePosition(cube, face) {
+            // Round position values to avoid floating point errors
+            cube.position.x = Math.round(cube.position.x);
+            cube.position.y = Math.round(cube.position.y);
+            cube.position.z = Math.round(cube.position.z);
+        }
+        
+        function updateCubeColors(cube, face) {
+            const isClockwise = face.length === 1;
+            const prevColors = { ...cube.userData.faceColors };
+            
+            // Rotate face colors based on the rotation
+            switch(face.charAt(0)) {
+                case 'F': // Front face rotation
+                    if (isClockwise) {
+                        cube.userData.faceColors = {
+                            right: prevColors.bottom,
+                            left: prevColors.top,
+                            top: prevColors.right,
+                            bottom: prevColors.left,
+                            front: prevColors.front,
+                            back: prevColors.back
+                        };
+                    } else {
+                        cube.userData.faceColors = {
+                            right: prevColors.top,
+                            left: prevColors.bottom,
+                            top: prevColors.left,
+                            bottom: prevColors.right,
+                            front: prevColors.front,
+                            back: prevColors.back
+                        };
+                    }
+                    break;
+                case 'B': // Back face rotation
+                    if (isClockwise) {
+                        cube.userData.faceColors = {
+                            right: prevColors.top,
+                            left: prevColors.bottom,
+                            top: prevColors.left,
+                            bottom: prevColors.right,
+                            front: prevColors.front,
+                            back: prevColors.back
+                        };
+                    } else {
+                        cube.userData.faceColors = {
+                            right: prevColors.bottom,
+                            left: prevColors.top,
+                            top: prevColors.right,
+                            bottom: prevColors.left,
+                            front: prevColors.front,
+                            back: prevColors.back
+                        };
+                    }
+                    break;
+                case 'R': // Right face rotation
+                    if (isClockwise) {
+                        cube.userData.faceColors = {
+                            right: prevColors.right,
+                            left: prevColors.left,
+                            top: prevColors.front,
+                            bottom: prevColors.back,
+                            front: prevColors.bottom,
+                            back: prevColors.top
+                        };
+                    } else {
+                        cube.userData.faceColors = {
+                            right: prevColors.right,
+                            left: prevColors.left,
+                            top: prevColors.back,
+                            bottom: prevColors.front,
+                            front: prevColors.top,
+                            back: prevColors.bottom
+                        };
+                    }
+                    break;
+                case 'L': // Left face rotation
+                    if (isClockwise) {
+                        cube.userData.faceColors = {
+                            right: prevColors.right,
+                            left: prevColors.left,
+                            top: prevColors.back,
+                            bottom: prevColors.front,
+                            front: prevColors.top,
+                            back: prevColors.bottom
+                        };
+                    } else {
+                        cube.userData.faceColors = {
+                            right: prevColors.right,
+                            left: prevColors.left,
+                            top: prevColors.front,
+                            bottom: prevColors.back,
+                            front: prevColors.bottom,
+                            back: prevColors.top
+                        };
+                    }
+                    break;
+                case 'U': // Up face rotation
+                    if (isClockwise) {
+                        cube.userData.faceColors = {
+                            right: prevColors.front,
+                            left: prevColors.back,
+                            top: prevColors.top,
+                            bottom: prevColors.bottom,
+                            front: prevColors.left,
+                            back: prevColors.right
+                        };
+                    } else {
+                        cube.userData.faceColors = {
+                            right: prevColors.back,
+                            left: prevColors.front,
+                            top: prevColors.top,
+                            bottom: prevColors.bottom,
+                            front: prevColors.right,
+                            back: prevColors.left
+                        };
+                    }
+                    break;
+                case 'D': // Down face rotation
+                    if (isClockwise) {
+                        cube.userData.faceColors = {
+                            right: prevColors.back,
+                            left: prevColors.front,
+                            top: prevColors.top,
+                            bottom: prevColors.bottom,
+                            front: prevColors.right,
+                            back: prevColors.left
+                        };
+                    } else {
+                        cube.userData.faceColors = {
+                            right: prevColors.front,
+                            left: prevColors.back,
+                            top: prevColors.top,
+                            bottom: prevColors.bottom,
+                            front: prevColors.left,
+                            back: prevColors.right
+                        };
+                    }
+                    break;
+            }
+            
+            // Update visual materials based on new position and colors
+            updateCubeMaterials(cube);
+        }
+        
+        function updateCubeMaterials(cube) {
+            const pos = cube.position;
+            const faceColors = cube.userData.faceColors;
+            
+            const materials = [];
+            
+            // Right face (index 0)
+            materials.push(new THREE.MeshLambertMaterial({ 
+                color: pos.x === 1 && faceColors.right ? colors[faceColors.right] : 0x333333 
+            }));
+            
+            // Left face (index 1)
+            materials.push(new THREE.MeshLambertMaterial({ 
+                color: pos.x === -1 && faceColors.left ? colors[faceColors.left] : 0x333333 
+            }));
+            
+            // Top face (index 2)
+            materials.push(new THREE.MeshLambertMaterial({ 
+                color: pos.y === 1 && faceColors.top ? colors[faceColors.top] : 0x333333 
+            }));
+            
+            // Bottom face (index 3)
+            materials.push(new THREE.MeshLambertMaterial({ 
+                color: pos.y === -1 && faceColors.bottom ? colors[faceColors.bottom] : 0x333333 
+            }));
+            
+            // Front face (index 4)
+            materials.push(new THREE.MeshLambertMaterial({ 
+                color: pos.z === 1 && faceColors.front ? colors[faceColors.front] : 0x333333 
+            }));
+            
+            // Back face (index 5)
+            materials.push(new THREE.MeshLambertMaterial({ 
+                color: pos.z === -1 && faceColors.back ? colors[faceColors.back] : 0x333333 
+            }));
+            
+            cube.material = materials;
+        }
+        
+        function scrambleCube() {
+            if (isAnimating) return;
+            
+            const moves = ['F', 'B', 'R', 'L', 'U', 'D', 'F\'', 'B\'', 'R\'', 'L\'', 'U\'', 'D\''];
+            const scrambleLength = 15 + Math.floor(Math.random() * 10); // 15-24 moves
+            scrambleSequence = [];
+            
+            let currentMove = 0;
+            
+            function executeNextMove() {
+                if (currentMove >= scrambleLength) {
+                    document.getElementById('currentMove').textContent = 'Scramble complete! Click Formula to see solution.';
+                    generateSolveSequence();
+                    return;
+                }
+                
+                const move = moves[Math.floor(Math.random() * moves.length)];
+                scrambleSequence.push(move);
+                
+                // Execute the move
+                rotateFace(move);
+                
+                // Wait for animation to complete, then do next move
+                setTimeout(() => {
+                    currentMove++;
+                    executeNextMove();
+                }, 600);
+            }
+            
+            document.getElementById('currentMove').textContent = 'Scrambling cube...';
+            moveCount = 0; // Reset move counter for scramble
+            executeNextMove();
+        }
+        
+        function generateSolveSequence() {
+            // Generate reverse sequence of scramble moves
+            solveSequence = scrambleSequence.slice().reverse().map(move => {
+                // Reverse each move
+                if (move.includes('\'')) {
+                    return move.charAt(0); // Remove prime
+                } else {
+                    return move + '\''; // Add prime
+                }
+            });
+        }
+        
+        function showFormula() {
+            if (solveSequence.length === 0) {
+                alert('Please scramble the cube first to generate a solving formula!');
+                return;
+            }
+            
+            const modal = document.getElementById('formulaModal');
+            const content = document.getElementById('formulaContent');
+            
+            let formulaHTML = '<h3>🎯 Solving Steps:</h3>';
+            formulaHTML += '<div class="formula-step">';
+            formulaHTML += '<h4>Complete Sequence:</h4>';
+            formulaHTML += '<p style="font-size: 18px; font-weight: bold; color: #4ECDC4;">';
+            formulaHTML += solveSequence.join(' ') + '</p>';
+            formulaHTML += '</div>';
+            
+            formulaHTML += '<h4>Step-by-step breakdown:</h4>';
+            
+            // Group moves for better understanding
+            const groups = [];
+            for (let i = 0; i < solveSequence.length; i += 4) {
+                groups.push(solveSequence.slice(i, i + 4));
+            }
+            
+            groups.forEach((group, index) => {
+                formulaHTML += '<div class="formula-step">';
+                formulaHTML += `<strong>Step ${index + 1}:</strong> ${group.join(' ')}`;
+                formulaHTML += '</div>';
+            });
+            
+            formulaHTML += '<div class="formula-step">';
+            formulaHTML += '<h4>📝 Move Notation:</h4>';
+            formulaHTML += '<p><strong>F</strong> = Front clockwise | <strong>F\'</strong> = Front counter-clockwise</p>';
+            formulaHTML += '<p><strong>R</strong> = Right clockwise | <strong>R\'</strong> = Right counter-clockwise</p>';
+            formulaHTML += '<p><strong>U</strong> = Up clockwise | <strong>U\'</strong> = Up counter-clockwise</p>';
+            formulaHTML += '<p><strong>L</strong> = Left clockwise | <strong>L\'</strong> = Left counter-clockwise</p>';
+            formulaHTML += '<p><strong>B</strong> = Back clockwise | <strong>B\'</strong> = Back counter-clockwise</p>';
+            formulaHTML += '<p><strong>D</strong> = Down clockwise | <strong>D\'</strong> = Down counter-clockwise</p>';
+            formulaHTML += '</div>';
+            
+            content.innerHTML = formulaHTML;
+            modal.style.display = 'flex';
+        }
+        
+        function closeFormula() {
+            document.getElementById('formulaModal').style.display = 'none';
+        }
+        
+        function executeFormula() {
+            if (solveSequence.length === 0) {
+                alert('No formula to execute!');
+                return;
+            }
+            
+            closeFormula();
+            
+            let currentMove = 0;
+            
+            function executeNextMove() {
+                if (currentMove >= solveSequence.length) {
+                    document.getElementById('currentMove').textContent = '🎉 Formula executed! Cube should be solved! 🎉';
+                    return;
+                }
+                
+                const move = solveSequence[currentMove];
+                document.getElementById('currentMove').textContent = `Executing formula: ${move} (${currentMove + 1}/${solveSequence.length})`;
+                
+                // Execute the move
+                rotateFace(move);
+                
+                // Wait for animation to complete, then do next move
+                setTimeout(() => {
+                    currentMove++;
+                    executeNextMove();
+                }, 600);
+            }
+            
+            executeNextMove();
+        }
+        
+        function resetCube() {
+            if (isAnimating) return;
+            
+            // Reset all cube positions and colors to original state
+            cubes.forEach((cube, index) => {
+                const originalPos = cube.userData.originalPosition;
+                cube.position.set(originalPos.x, originalPos.y, originalPos.z);
+                
+                // Reset colors to original state
+                cube.userData.faceColors = {
+                    right: originalPos.x === 1 ? 'blue' : null,
+                    left: originalPos.x === -1 ? 'green' : null,
+                    top: originalPos.y === 1 ? 'white' : null,
+                    bottom: originalPos.y === -1 ? 'yellow' : null,
+                    front: originalPos.z === 1 ? 'red' : null,
+                    back: originalPos.z === -1 ? 'orange' : null
+                };
+                
+                // Update visual materials
+                updateCubeMaterials(cube);
+            });
+            
+            // Reset counters
+            moveCount = 0;
+            scrambleSequence = [];
+            solveSequence = [];
+            startTime = Date.now();
+            
+            updateUI();
+            document.getElementById('currentMove').textContent = 'Cube reset to solved state!';
+        }
+        
+        function solveCube() {
+            if (isAnimating) return;
+            
+            // Generate CFOP solution
+            solveSequence = generateCFOPSolution();
+            executeFormula();
+        }
+        
+        function generateCFOPSolution() {
+            let solution = [];
+            
+            // 1. Solve the cross
+            solution = solution.concat(solveCross());
+            
+            // 2. Solve F2L (First 2 Layers)
+            solution = solution.concat(solveF2L());
+            
+            // 3. Solve OLL (Orient Last Layer)
+            solution = solution.concat(solveOLL());
+            
+            // 4. Solve PLL (Permute Last Layer)
+            solution = solution.concat(solvePLL());
+            
+            return solution;
+        }
+        
+        function solveCross() {
+            let moves = [];
+            const bottomEdges = findBottomEdges();
+            
+            bottomEdges.forEach(edge => {
+                if (!isEdgeCorrect(edge)) {
+                    moves = moves.concat(alignEdge(edge));
+                }
+            });
+            
+            return moves;
+        }
+        
+        function solveF2L() {
+            let moves = [];
+            const corners = findF2LCorners();
+            const edges = findF2LEdges();
+            
+            // Pair up corners and edges
+            for (let i = 0; i < 4; i++) {
+                if (corners[i] && edges[i]) {
+                    moves = moves.concat(pairF2L(corners[i], edges[i]));
+                }
+            }
+            
+            return moves;
+        }
+        
+        function solveOLL() {
+            let moves = [];
+            
+            // First orient edges
+            if (!areEdgesOriented()) {
+                moves = moves.concat(CFOP.OLL_ALGORITHMS.cross);
+            }
+            
+            // Then orient corners
+            if (!areCornersOriented()) {
+                moves = moves.concat(CFOP.OLL_ALGORITHMS.corners);
+            }
+            
+            return moves;
+        }
+        
+        function solvePLL() {
+            let moves = [];
+            
+            // First permute corners
+            if (!areCornersPermuted()) {
+                moves = moves.concat(CFOP.PLL_ALGORITHMS.corners);
+            }
+            
+            // Then permute edges
+            if (!areEdgesPermuted()) {
+                moves = moves.concat(CFOP.PLL_ALGORITHMS.edges);
+            }
+            
+            return moves;
+        }
+        
+        // Helper functions
+        function findBottomEdges() {
+            return cubes.filter(cube => {
+                const pos = cube.position;
+                return Math.abs(pos.y + 1) < 0.1 && // Bottom layer
+                    ((Math.abs(pos.x) === 1 && pos.z === 0) || // Left/Right edges
+                     (Math.abs(pos.z) === 1 && pos.x === 0));  // Front/Back edges
+            });
+        }
+        
+        function isEdgeCorrect(edge) {
+            const pos = edge.position;
+            const colors = edge.userData.faceColors;
+            
+            // Check if edge is in correct position and orientation
+            return (pos.y === -1 && colors.bottom === 'yellow') &&
+                   ((pos.x === 1 && colors.right === 'blue') ||
+                    (pos.x === -1 && colors.left === 'green') ||
+                    (pos.z === 1 && colors.front === 'red') ||
+                    (pos.z === -1 && colors.back === 'orange'));
+        }
+        
+        function alignEdge(edge) {
+            // Generate moves to align edge piece based on its current position and orientation
+            const pos = edge.position;
+            const colors = edge.userData.faceColors;
+            
+            if (pos.y === -1) {
+                if (colors.bottom === 'yellow') {
+                    return []; // Already correct
+                }
+                // Need to flip edge
+                return CFOP.F2L_ALGORITHMS.basic;
+            }
+            
+            // Edge is in wrong position, generate moves to bring it to bottom face
+            return CFOP.CROSS_ALGORITHMS[determineEdgeFace(edge)];
+        }
+        
+        function isSolved() {
+            // Check if all cubes are in their original positions with correct colors
+            return cubes.every(cube => {
+                const originalPos = cube.userData.originalPosition;
+                const currentPos = cube.position;
+                
+                // Check position
+                const positionMatch = Math.abs(currentPos.x - originalPos.x) < 0.1 &&
+                                    Math.abs(currentPos.y - originalPos.y) < 0.1 &&
+                                    Math.abs(currentPos.z - originalPos.z) < 0.1;
+                
+                if (!positionMatch) return false;
+                
+                // Check colors match original state
+                const expectedColors = {
+                    right: originalPos.x === 1 ? 'blue' : null,
+                    left: originalPos.x === -1 ? 'green' : null,
+                    top: originalPos.y === 1 ? 'white' : null,
+                    bottom: originalPos.y === -1 ? 'yellow' : null,
+                    front: originalPos.z === 1 ? 'red' : null,
+                    back: originalPos.z === -1 ? 'orange' : null
+                };
+                
+                return Object.keys(expectedColors).every(face => 
+                    cube.userData.faceColors[face] === expectedColors[face]
+                );
+            });
+        }
+        
+        function updateUI() {
+            document.getElementById('moveCount').textContent = moveCount;
+        }
+        
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                document.getElementById('timer').textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Close modal when clicking outside
+        document.addEventListener('click', (event) => {
+            const modal = document.getElementById('formulaModal');
+            if (event.target === modal) {
+                closeFormula();
+            }
+        });
+        
+        // Initialize the application
+        init();
+    </script>
+</body>
+</html>
